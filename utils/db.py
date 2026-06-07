@@ -2,8 +2,11 @@ import streamlit as st
 from supabase import create_client
 import pandas as pd
 
-SUPABASE_URL = st.secrets["https://qhxepqgritemabnkians.supabase.co"]
-SUPABASE_KEY = st.secrets["sb_publishable_xzbwJgwT5jpgYryxkDq5bA_CXBQ-XbZ"]
+# 从 secrets 中读取 Supabase 配置
+# 注意：方括号内是键名（变量名），而不是 URL 或 key 本身
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_bookings(tour_code=None):
