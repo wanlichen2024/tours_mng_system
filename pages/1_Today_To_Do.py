@@ -2,8 +2,11 @@ import streamlit as st
 from utils.db import supabase
 from datetime import datetime, timedelta
 import pandas as pd
+import pytz  # 需要安装：pip install pytz
 
 st.subheader("📅 Upcoming Hotel Confirmation Deadlines (Next 14 Days)")
+
+# 获取数据
 resp = supabase.table("bookings").select("*").eq("category", "hotel").is_("reference", "null").execute()
 hotels = pd.DataFrame(resp.data)
 
@@ -11,16 +14,23 @@ if hotels.empty:
     st.success("🎉 No pending hotel confirmations. All hotels are confirmed.")
     st.stop()
 
-today = datetime.now().date()
+# 使用本地日期（新西兰时区）
+local_tz = pytz.timezone('Pacific/Auckland')
+today = datetime.now(local_tz).date()
+
 reminders = []
 for _, row in hotels.iterrows():
-    check_in = pd.to_datetime(row['check_in_date']).date()
+    # 将数据库中的日期字符串转为 datetime，并本地化
+    check_in_str = row['check_in_date']
+    # 假设数据库存的是 UTC 日期字符串 "2026-07-02"
+    # 直接解析为日期，不涉及时区
+    check_in = pd.to_datetime(check_in_str).date()
     days_notice = row.get('days_advance_notice', 32)
     deadline = check_in - timedelta(days=days_notice)
     days_left = (deadline - today).days
     if 0 <= days_left <= 14:
         reminders.append({
-            'date': deadline,
+            'date': deadline,  # 这个是纯日期
             'tour_code': row['tour_code'],
             'hotel': row['business_name'],
             'city': row.get('city', ''),
@@ -31,6 +41,11 @@ for _, row in hotels.iterrows():
 if not reminders:
     st.info("No deadlines in the next 14 days.")
     st.stop()
+
+# 调试：显示实际截止日期（可注释掉）
+with st.expander("Debug: Show raw deadlines"):
+    for r in reminders:
+        st.write(f"{r['tour_code']} - {r['hotel']} : deadline {r['date']}")
 
 df_reminders = pd.DataFrame(reminders).sort_values('date')
 st.markdown("### 📆 Calendar View")
