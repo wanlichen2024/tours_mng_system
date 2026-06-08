@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import time
 from utils.db import supabase
 from datetime import datetime
 
@@ -16,7 +17,6 @@ def get_tours(include_deleted=False):
 
 def upsert_tour(record):
     """插入或更新团队记录（保留 is_deleted 字段不变）"""
-    # 确保不会意外覆盖 is_deleted 字段
     if 'is_deleted' in record:
         del record['is_deleted']
     supabase.table("tours").upsert(record, on_conflict="tour_code").execute()
@@ -24,8 +24,13 @@ def upsert_tour(record):
 def soft_delete_tour(tour_code):
     """软删除：将 is_deleted 设为 True"""
     try:
-        supabase.table("tours").update({"is_deleted": True}).eq("tour_code", tour_code).execute()
-        return True
+        result = supabase.table("tours").update({"is_deleted": True}).eq("tour_code", tour_code).execute()
+        # 检查是否真的更新了记录
+        if result.data:
+            return True
+        else:
+            st.error("未找到要删除的团队或更新失败")
+            return False
     except Exception as e:
         st.error(f"软删除失败: {e}")
         return False
@@ -58,6 +63,7 @@ if action == "查看团队列表":
                 if confirm:
                     if soft_delete_tour(tour_to_del):
                         st.success(f"团队 {tour_to_del} 已标记为删除")
+                        time.sleep(1)
                         st.rerun()
 
 # ---------- 新增/编辑团队 ----------
@@ -139,4 +145,5 @@ elif action == "回收站":
             if st.button("恢复该团队"):
                 if restore_tour(tour_to_restore):
                     st.success(f"团队 {tour_to_restore} 已恢复")
+                    time.sleep(1)
                     st.rerun()
