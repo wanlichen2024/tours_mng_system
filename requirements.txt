@@ -4,3 +4,4 @@ supabase
 pyperclip
 openpyxl
 pytz
+plotly
