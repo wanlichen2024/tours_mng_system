@@ -6,37 +6,64 @@ from datetime import datetime
 st.set_page_config(page_title="团队管理", layout="wide")
 st.title("📋 团队管理")
 
-def get_tours():
-    resp = supabase.table("tours").select("*").order("start_date").execute()
-    return pd.DataFrame(resp.data)
+def get_tours(include_deleted=False):
+    """获取团队列表，默认只返回未删除的团队"""
+    if include_deleted:
+        response = supabase.table("tours").select("*").order("start_date").execute()
+    else:
+        response = supabase.table("tours").select("*").eq("is_deleted", False).order("start_date").execute()
+    return pd.DataFrame(response.data)
 
 def upsert_tour(record):
+    """插入或更新团队记录（保留 is_deleted 字段不变）"""
+    # 确保不会意外覆盖 is_deleted 字段
+    if 'is_deleted' in record:
+        del record['is_deleted']
     supabase.table("tours").upsert(record, on_conflict="tour_code").execute()
 
-def delete_tour(tour_code):
-    supabase.table("tours").delete().eq("tour_code", tour_code).execute()
+def soft_delete_tour(tour_code):
+    """软删除：将 is_deleted 设为 True"""
+    try:
+        supabase.table("tours").update({"is_deleted": True}).eq("tour_code", tour_code).execute()
+        return True
+    except Exception as e:
+        st.error(f"软删除失败: {e}")
+        return False
 
-action = st.sidebar.radio("操作", ["查看团队列表", "新增/编辑团队"])
+def restore_tour(tour_code):
+    """恢复已删除的团队：将 is_deleted 设为 False"""
+    try:
+        supabase.table("tours").update({"is_deleted": False}).eq("tour_code", tour_code).execute()
+        return True
+    except Exception as e:
+        st.error(f"恢复失败: {e}")
+        return False
 
+# 侧边栏选项
+action = st.sidebar.radio("操作", ["查看团队列表", "新增/编辑团队", "回收站"])
+
+# ---------- 查看团队列表 ----------
 if action == "查看团队列表":
-    st.subheader("🗂️ 所有团队")
-    df = get_tours()
+    st.subheader("🗂️ 所有团队（未删除）")
+    df = get_tours(include_deleted=False)
     if df.empty:
         st.info("暂无团队数据。请先添加。")
     else:
         st.dataframe(df, use_container_width=True)
+        
         with st.expander("删除团队"):
             tour_to_del = st.selectbox("选择要删除的团号", df['tour_code'].tolist())
-            if st.button("删除该团队"):
-                confirm = st.checkbox("确认删除？此操作不会影响 bookings 中的预订记录。")
+            if st.button("软删除该团队"):
+                confirm = st.checkbox("确认标记为删除？团队将不再显示，但数据保留在数据库中。")
                 if confirm:
-                    delete_tour(tour_to_del)
-                    st.success(f"已删除团队 {tour_to_del}")
-                    st.rerun()
+                    if soft_delete_tour(tour_to_del):
+                        st.success(f"团队 {tour_to_del} 已标记为删除")
+                        st.rerun()
 
+# ---------- 新增/编辑团队 ----------
 elif action == "新增/编辑团队":
     st.subheader("✏️ 新增或编辑团队")
-    tours_df = get_tours()
+    tours_df = get_tours(include_deleted=False)   # 编辑时不显示已删除的团队
     existing_codes = tours_df['tour_code'].tolist() if not tours_df.empty else []
     
     option = st.radio("选择", ["新建团队", "编辑已有团队"])
@@ -53,7 +80,6 @@ elif action == "新增/编辑团队":
     with st.form("tour_form"):
         col1, col2 = st.columns(2)
         with col1:
-            # 安全处理日期：如果值为空或NaT，则使用None，st.date_input 会显示空
             start_val = tour_data.get('start_date')
             if start_val in (None, pd.NaT, '') or (isinstance(start_val, float) and pd.isna(start_val)):
                 start_val = None
@@ -98,3 +124,19 @@ elif action == "新增/编辑团队":
                 upsert_tour(new_record)
                 st.success(f"团队 {tour_code} 已保存")
                 st.rerun()
+
+# ---------- 回收站：查看/恢复已删除团队 ----------
+elif action == "回收站":
+    st.subheader("🗑️ 回收站（已删除的团队）")
+    df_deleted = get_tours(include_deleted=True)
+    df_deleted = df_deleted[df_deleted['is_deleted'] == True]
+    if df_deleted.empty:
+        st.info("回收站为空。")
+    else:
+        st.dataframe(df_deleted, use_container_width=True)
+        with st.expander("恢复团队"):
+            tour_to_restore = st.selectbox("选择要恢复的团号", df_deleted['tour_code'].tolist())
+            if st.button("恢复该团队"):
+                if restore_tour(tour_to_restore):
+                    st.success(f"团队 {tour_to_restore} 已恢复")
+                    st.rerun()
