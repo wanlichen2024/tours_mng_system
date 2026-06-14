@@ -2,7 +2,8 @@ name: Sync Google Sheets to Supabase
 
 on:
   schedule:
-    - cron: '0 */6 * * *'   # 每6小时运行一次
+    - cron: '*/15 21-23 * * 1-5'   # UTC 21-23 = 新西兰 10-13（夏令时）或 9-12（冬令时）
+    - cron: '*/15 0-5 * * 2-6'     # UTC 0-5 = 新西兰 13-18（夏令时）或 12-17（冬令时）
   workflow_dispatch:          # 允许手动触发
 
 jobs:
