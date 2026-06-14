@@ -6,8 +6,21 @@ from supabase import create_client
 from google.oauth2.service_account import Credentials
 import re
 from datetime import datetime
+import pytz
 
-# 从环境变量读取配置
+# ==================== 工作时间判断 ====================
+def is_working_time():
+    """判断当前是否在工作时间内（新西兰时间 周一至周五 10:00-18:00）"""
+    tz = pytz.timezone('Pacific/Auckland')
+    now = datetime.now(tz)
+    # 周一=0，周日=6
+    if now.weekday() >= 5:  # 周六、周日
+        return False
+    if now.hour < 10 or now.hour >= 18:
+        return False
+    return True
+
+# ==================== 环境变量 ====================
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_KEY"]
 GDRIVE_CREDENTIALS = os.environ["GDRIVE_CREDENTIALS"]
@@ -26,6 +39,7 @@ gc = gspread.authorize(creds)
 sh = gc.open_by_url(SHEET_URL)
 
 def clean_bookings_df(df):
+    """清洗 bookings 数据，与 insert_bookings_batch 逻辑一致"""
     df = df.replace({pd.NA: None, float('nan'): None, '': None})
     if 'tour_code' in df.columns:
         df['tour_code'] = df['tour_code'].fillna('MISSING_CODE')
@@ -63,6 +77,7 @@ def clean_bookings_df(df):
     return df
 
 def clean_tours_df(df):
+    """清洗 tours 数据"""
     df = df.replace({pd.NA: None, float('nan'): None, '': None})
     if 'tour_code' in df.columns:
         df['tour_code'] = df['tour_code'].fillna('MISSING_CODE')
@@ -77,6 +92,7 @@ def clean_tours_df(df):
     for col in text_cols:
         if col in df.columns:
             df[col] = df[col].astype(str).replace('nan', None).replace('None', None)
+    # 移除 id, created_at
     for col in ['id', 'created_at']:
         if col in df.columns:
             df = df.drop(columns=[col])
@@ -116,6 +132,11 @@ def sync_tours():
         print(f"Error syncing tours: {e}")
 
 if __name__ == "__main__":
+    # 检查是否在工作时间内
+    if not is_working_time():
+        print("Not in working hours (NZ time 10:00-18:00 Mon-Fri), skipping sync")
+        exit(0)
+    
     sync_bookings()
     sync_tours()
     print("Sync completed")
