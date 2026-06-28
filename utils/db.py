@@ -3,8 +3,8 @@ from supabase import create_client
 import pandas as pd
 
 # 从 secrets 中读取 Supabase 配置（注意键名必须与 secrets.toml 完全一致）
-SUPABASE_URL = st.secrets["supabase_url"]
-SUPABASE_KEY = st.secrets["supabase_key"]
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 

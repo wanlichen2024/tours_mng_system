@@ -1,4 +1,8 @@
 import streamlit as st
+print("DEBUG: st.secrets keys:", list(st.secrets.keys()))
+
+
+import streamlit as st
 import pandas as pd
 from utils.db import supabase
 from datetime import date, timedelta
