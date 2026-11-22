@@ -13,6 +13,7 @@ st.set_page_config(
 
 pages = [
     st.Page("pages/email_draft.py", title="Email Draft", icon="📧", default=True),
+    st.Page("pages/mail_assistant.py", title="邮件助手", icon="📥"),
     st.Page("pages/final_check.py", title="Final Check", icon="🧭"),
 ]
 
